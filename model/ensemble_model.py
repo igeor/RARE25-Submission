@@ -10,16 +10,7 @@ from torch import nn
 from torchvision import transforms
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_EXPERIMENT_DIR = (
-    REPO_ROOT
-    / "output"
-    / "model_RN50_Billion-Scale-SWSL+GastroNet-5M_DINOv1_frozen_TRUE_epochs15_seed42"
-)
-DEFAULT_CHECKPOINT_PATH_LIST = [
-    DEFAULT_EXPERIMENT_DIR / f"fold_{fold_idx}" / "checkpoint_epoch_15.pth"
-    for fold_idx in range(1, 6)
-]
+APP_ROOT = Path(__file__).resolve().parents[1]
 
 
 class ClassificationHead(nn.Module):
@@ -77,7 +68,7 @@ def get_classification_head(
 def resolve_path(path: str | Path) -> Path:
     path = Path(path)
     if not path.is_absolute():
-        path = REPO_ROOT / path
+        path = APP_ROOT / path
     return path
 
 
@@ -195,41 +186,7 @@ class EnsembleModel(nn.Module):
         return probs
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Load a trained RARE26 ensemble model."
-    )
-    parser.add_argument(
-        "--checkpoint",
-        action="append",
-        dest="checkpoints",
-        help=(
-            "Path to a trained checkpoint. Repeat this argument to ensemble "
-            "multiple checkpoints. Defaults to all five fold checkpoints."
-        ),
-    )
-    parser.add_argument(
-        "--model-name",
-        default="resnet50",
-        help="timm model name used by the checkpoints.",
-    )
-    parser.add_argument(
-        "--image-size",
-        type=int,
-        default=224,
-        help="Input image size used for inference.",
-    )
-    parser.add_argument(
-        "--device",
-        default="cuda" if torch.cuda.is_available() else "cpu",
-        choices=["cpu", "cuda"],
-        help="Device used to load the ensemble.",
-    )
-    return parser.parse_args()
-
-
 def main() -> None:
-    args = parse_args()
     # checkpoint_path_list = args.checkpoints or DEFAULT_CHECKPOINT_PATH_LIST
     checkpoint_path_list = [
         r"output/model_RN50_Billion-Scale-SWSL+GastroNet-5M_DINOv1_frozen_TRUE_epochs15_seed42/fold_1/checkpoint_epoch_15.pth",
@@ -240,32 +197,23 @@ def main() -> None:
     ]
 
     model = EnsembleModel(
-        model_name=args.model_name,
+        model_name="resnet50",
         checkpoint_path_list=checkpoint_path_list,
-        image_size=args.image_size,
+        image_size=224,
         head_hidden_dims=[256],
         head_activation="relu",
         head_norm=None,
         head_dropout=0.1,
-        device=torch.device(args.device),
+        device="cuda",
     )
 
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-
     fake_input_batch = [
-        np.random.randint(0, 256, (args.image_size, args.image_size, 3), dtype=np.uint8)
+        np.random.randint(0, 256, (224, 224, 3), dtype=np.uint8)
         for _ in range(2)
     ]
     with torch.no_grad():
         output = model.predict(fake_input_batch)
     print(output)
-
-    print(f"Loaded ensemble with {len(model.models)} model(s).")
-    print(f"Device: {model.device}")
-    print(f"Trainable parameters: {trainable_params:,}")
-    print(f"Total parameters: {total_params:,}")
-
 
 if __name__ == "__main__":
     main()

@@ -60,12 +60,21 @@ def interface_0_handler():
 
     """ Run your model here """
     # for demonstration we will use the timm classification model from the model directory
-    from model.timm_model import TimmClassificationModel
-    print('ResNet50-baseline')
-    model = TimmClassificationModel(
+    from model.ensemble_model import EnsembleModel
+    model = EnsembleModel(
         model_name="resnet50",
-        num_classes=1,
-        weights=RESOURCE_PATH / "resnet50.pth",
+        checkpoint_path_list=[
+            RESOURCE_PATH / "fold1_checkpoint_epoch_15.pth",
+            RESOURCE_PATH / "fold2_checkpoint_epoch_15.pth",
+            RESOURCE_PATH / "fold3_checkpoint_epoch_15.pth",
+            RESOURCE_PATH / "fold4_checkpoint_epoch_15.pth",
+            RESOURCE_PATH / "fold5_checkpoint_epoch_15.pth"
+        ],
+        image_size=224,
+        head_hidden_dims=[256],
+        head_activation="relu",
+        head_norm=None,
+        head_dropout=0.1,
     )
 
     output_stacked_neoplastic_lesion_likelihoods = model.predict(input_stacked_barretts_esophagus_endoscopy_images)
@@ -100,8 +109,6 @@ def write_json_file(*, location, content):
     # Writes a json file
     with open(location, "w") as f:
         f.write(json.dumps(content, indent=4))
-
-0
 def load_image_file_as_array(*, location):
     # Use SimpleITK to read a file
     input_files = (
